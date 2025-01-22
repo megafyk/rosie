@@ -1,8 +1,8 @@
-from ssl import ALERT_DESCRIPTION_INTERNAL_ERROR
+import json
+import os
+
 from atlassian import Confluence
 from dotenv import load_dotenv
-import os
-import json
 
 load_dotenv()
 
@@ -13,6 +13,7 @@ confluence = Confluence(
     password=os.getenv('CONFLUENCE_PASSWORD')
 )
 SPACE_KEY = os.getenv('CONFLUENCE_SPACE_KEY')
+
 
 def get_child_pages(page_id, start=0, limit=100):
     """
@@ -27,15 +28,13 @@ def get_child_pages(page_id, start=0, limit=100):
     )
     return children
 
+
 def fetch_page_content_recursively(page_id, level=0):
     """
     Fetch the content of a page and recursively fetch its child pages.
     """
     # Get the current page
-    page = confluence.get_page_by_id(
-        page_id=page_id,
-        expand="body.storage"
-    )
+    page = confluence.get_page_by_id(page_id=page_id, expand="body.storage")
 
     title = page.get("title")
     body = page["body"]["storage"]["value"]  # HTML content of the page
@@ -59,34 +58,47 @@ def fetch_page_content_recursively(page_id, level=0):
 
     return page_data
 
-def get_space_hierarchy(space_key, start=0, limit=100):
+
+def get_space_hierarchy(space_key, start=0, limit=100, root_page_id=None):
     """
     Build the hierarchy of pages in a Confluence space.
     """
-    # Fetch all root pages (pages with no ancestors)
-    root_pages = [
-        page for page in confluence.get_all_pages_from_space(
-            space=space_key,
-            start=start,
-            limit=limit,
-            expand="ancestors"
-        ) if not page["ancestors"]
-    ]
-
-
-    # Build the hierarchy by recursively fetching content
     space_hierarchy = []
-    for root_page in root_pages:
-        space_hierarchy.append(fetch_page_content_recursively(root_page["id"]))
+    # Build the hierarchy by recursively fetching content
+    if root_page_id:
+        space_hierarchy.append(fetch_page_content_recursively(root_page_id))
+    else:
+        # Fetch all root pages (pages with no ancestors)
+        root_pages = [
+            page for page in confluence.get_all_pages_from_space(
+                space=space_key,
+                start=start,
+                limit=limit,
+                expand="ancestors"
+            ) if not page["ancestors"]
+        ]
+        for root_page in root_pages:
+            space_hierarchy.append(fetch_page_content_recursively(root_page["id"]))
 
     return space_hierarchy
+
+
+def extract_text_from_html(html):
+    """
+    Extract text from HTML content.
+    """
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    return soup.get_text()
+
 
 if __name__ == "__main__":
     # Get the full hierarchy of the space
     print(f"Fetching all pages and their child content from space '{SPACE_KEY}'...\n")
     space_hierarchy = get_space_hierarchy(SPACE_KEY)
 
-    with open("datasets/space_hierarchy.json", "w", encoding="utf-8") as f:
+    file_name = "datasets/space_hierarchy.json"
+    with open(file_name, "w", encoding="utf-8") as f:
         json.dump(space_hierarchy, f, indent=4, ensure_ascii=False)
 
-    print("Hierarchy saved to 'space_hierarchy.json'")
+    print("Hierarchy saved to " + file_name)
