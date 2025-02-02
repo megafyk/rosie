@@ -83,15 +83,6 @@ def get_space_hierarchy(space_key, start=0, limit=100, root_page_id=None):
     return space_hierarchy
 
 
-def extract_text_from_html(html):
-    """
-    Extract text from HTML content.
-    """
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(html, "html.parser")
-    return soup.get_text()
-
-
 if __name__ == "__main__":
     # Get the full hierarchy of the space
     print(f"Fetching all pages and their child content from space '{SPACE_KEY}'...\n")
