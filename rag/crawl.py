@@ -88,7 +88,7 @@ if __name__ == "__main__":
     print(f"Fetching all pages and their child content from space '{SPACE_KEY}'...\n")
     space_hierarchy = get_space_hierarchy(SPACE_KEY)
 
-    file_name = "datasets/space_hierarchy.json"
+    file_name = "../datasets/space_hierarchy.json"
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(space_hierarchy, f, indent=4, ensure_ascii=False)
 
