@@ -1,6 +1,8 @@
 atlassian-python-api
 beautifulsoup4
 python-dotenv
-ray[data]
+ray
 transformers
 langchain
+langchain-community
+sentence-transformers

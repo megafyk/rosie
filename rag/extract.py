@@ -49,7 +49,6 @@ def extract_data_from_pages(pages):
     for page in pages:
         q = deque([page])
         while q:
-            print(f"process page id {page['id']}")
             n = len(q)
             for _ in range(n):
                 page = q.popleft()
