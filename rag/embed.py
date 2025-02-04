@@ -1,9 +1,10 @@
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from functools import partial
-from ray.data import ActorPoolStrategy
-import ray
 import json
+from functools import partial
+
+import ray
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
+from ray.data import ActorPoolStrategy
 
 
 def chunk_section(section, chunk_size, chunk_overlap):
@@ -52,8 +53,8 @@ if __name__ == "__main__":
     # embed text chunks
     batch_size = 100
     num_gpus = 1
-    num_compute = 1
-    embedding_model_name = "vinai/phobert-base"
+    num_compute = 6
+    embedding_model_name = "dangvantuan/vietnamese-embedding"
     embedded_chunks = chunks_ds.map_batches(
         EmbedChunks,
         fn_constructor_kwargs={"model_name": embedding_model_name},
