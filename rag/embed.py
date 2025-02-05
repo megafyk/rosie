@@ -4,7 +4,6 @@ from functools import partial
 import ray
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from ray.data import ActorPoolStrategy
 
 
 def chunk_section(section, chunk_size, chunk_overlap):
@@ -21,11 +20,13 @@ def chunk_section(section, chunk_size, chunk_overlap):
 
 
 class EmbedChunks:
-    def __init__(self, model_name):
+    def __init__(self, model_name, optimal="cpu", batch_size=100):
+        device = "cuda" if optimal == "gpu" else "cpu"
         self.embedding_model = HuggingFaceEmbeddings(
             model_name=model_name,
-            model_kwargs={"device": "cuda"},
-            encode_kwargs={"device": "cuda", "batch_size": 100})
+            model_kwargs={"device": device},
+            encode_kwargs={"device": device, "batch_size": batch_size}
+        )
 
     def __call__(self, batch):
         embeddings = self.embedding_model.embed_documents(batch["text"])
@@ -52,15 +53,14 @@ if __name__ == "__main__":
     print("----------------start embed----------------")
     # embed text chunks
     batch_size = 100
-    num_gpus = 1
-    num_compute = 6
+    concurrent = 4
     embedding_model_name = "dangvantuan/vietnamese-embedding"
     embedded_chunks = chunks_ds.map_batches(
         EmbedChunks,
-        fn_constructor_kwargs={"model_name": embedding_model_name},
+        fn_constructor_kwargs={"model_name": embedding_model_name, "optimal": "cpu", "batch_size": batch_size},
         batch_size=batch_size,
-        num_gpus=num_gpus,
-        compute=ActorPoolStrategy(size=num_compute))
+        concurrency=concurrent
+    )
     embedded_chunks.show()
-    print(f"{embedded_chunks.count()} chunks")
+    print(f"{embedded_chunks.count()} embedded chunks")
     print("----------------end embed----------------")
