@@ -8,3 +8,10 @@ langchain-community
 langchain-huggingface
 sentence-transformers
 sentencepiece
+
+# Vector DB
+asyncpg
+pgvector
+psycopg[binary,pool]
+psycopg2-binary
+sqlalchemy[asyncio]

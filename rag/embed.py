@@ -1,22 +1,20 @@
 import json
+import os
 from functools import partial
+from timeit import default_timer as timer
 
+import psycopg
 import ray
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
+from pgvector.psycopg import register_vector
 
-
-def chunk_section(section, chunk_size, chunk_overlap):
-    text_splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n", "\n", " ", ""],
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-    )
-    chunks = text_splitter.create_documents(
-        texts=[f"{section['title']} {section['content']}"], metadatas=[{'source': section['page_id']}]
-    )
-    return [{'text': chunk.page_content, 'source': chunk.metadata['source']} for chunk in chunks]
+# DB connection settings
+DB_NAME = os.getenv('DB_NAME'),
+DB_USER = os.getenv('DB_USER'),
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
+DB_PORT = os.getenv('DB_PORT')
 
 
 class EmbedChunks:
@@ -34,33 +32,105 @@ class EmbedChunks:
             embeddings}
 
 
-if __name__ == "__main__":
-    # read data from space_data.json line by line and chunk text into smaller parts
-    print("----------------start chunk----------------")
+class StoreEmbedding:
+    def __call__(self, batch):
+        with psycopg.connect(
+                f"dbname={DB_NAME} user={DB_USER} host={DB_HOST} port={DB_PORT} password={DB_PASSWORD}"
+        ) as conn:
+            register_vector(conn)
+            with conn.cursor() as cur:
+                for text, source, embedding in zip(
+                        batch["text"], batch["source"], batch["embeddings"]
+                ):
+                    cur.execute(
+                        "INSERT INTO document (text, source, embedding) VALUES (%s, %s, %s)",
+                        (
+                            text,
+                            source,
+                            embedding,
+                        ),
+                    )
+        return {}
 
-    with open("../datasets/space_data.json") as file:
-        space_data = json.load(file)
-    chunk_size = 300
-    chunk_overlap = 50
-    cnt = 0
-    ds = ray.data.from_items(space_data)
-    chunks_ds = ds.flat_map(partial(chunk_section, chunk_size=chunk_size, chunk_overlap=chunk_overlap))
-    chunks_ds.show()
-    print(f"\n{chunks_ds.count()} chunks")
 
-    print("----------------end chunk----------------")
+def chunk_section(section, chunk_size, chunk_overlap):
+    text_splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\n", "\n", " ", ""],
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len,
+    )
+    chunks = text_splitter.create_documents(
+        texts=[f"{section['title']} {section['content']}"], metadatas=[{'source': section['page_id']}]
+    )
+    return [{'text': chunk.page_content, 'source': chunk.metadata['source']} for chunk in chunks]
 
-    print("----------------start embed----------------")
-    # embed text chunks
-    batch_size = 100
-    concurrent = 4
-    embedding_model_name = "dangvantuan/vietnamese-embedding"
+
+def get_resources():
+    print(f"Number of GPUs: {ray.cluster_resources().get("GPU", 0)}")
+    print(f"Number of CPUs: {ray.cluster_resources().get("CPU", 0)}")
+    print(f"Number of nodes: {len(ray.nodes())}")
+    return {
+        "num_cpus": ray.cluster_resources().get("CPU", 0) // 2, # use 50% of available CPUs
+        "num_gpus": ray.cluster_resources().get("GPU", 0),
+        "num_nodes": len(ray.nodes())
+    }
+
+
+def build_index(data, chunk_size, chunk_overlap, batch_size, embedding_model_name):
+    # docs -> sections -> chunks
+    ds = ray.data.from_items(data)
+    chunks_ds = ds.flat_map(
+        partial(
+            chunk_section,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap
+        )
+    )
+    resources = get_resources()
+
+    # Embed chunks
     embedded_chunks = chunks_ds.map_batches(
         EmbedChunks,
-        fn_constructor_kwargs={"model_name": embedding_model_name, "optimal": "cpu", "batch_size": batch_size},
+        fn_constructor_kwargs={"model_name": embedding_model_name},
         batch_size=batch_size,
-        concurrency=concurrent
-    )
-    embedded_chunks.show()
-    print(f"{embedded_chunks.count()} embedded chunks")
-    print("----------------end embed----------------")
+        num_cpus=resources["num_cpus"],
+        num_gpus=resources["num_gpus"],
+        concurrency=resources["num_nodes"]
+    ).take(10)
+    print(embedded_chunks)
+
+    # Index data
+    # embedded_chunks.map_batches(
+    #     StoreEmbedding,
+    #     batch_size=batch_size,
+    #     num_cpus=num_cpus,
+    #     num_gpus=num_gpus,
+    #     concurrency=concurrency
+    # ).count()
+
+    # Save to SQL dump
+    # execute_bash(f"sudo -u postgres pg_dump -c > {sql_dump_fp}")
+    # print("Updated the index!")
+
+
+if __name__ == "__main__":
+    # read data from space_data.json line by line and chunk text into smaller parts
+    print("----------------start load----------------")
+    with open("../datasets/space_data.json") as file:
+        space_data = json.load(file)
+    print("----------------end load----------------")
+
+    print("----------------start embedding----------------")
+
+    embedding_model_name = "dangvantuan/vietnamese-embedding"
+
+    chunk_size = 300
+    chunk_overlap = 50
+    batch_size = 100
+
+    start_embeddings = timer()
+    build_index(space_data, chunk_size, chunk_overlap, batch_size, embedding_model_name)
+    end_embeddings = timer()
+
+    print(f"\n----------------end embedding Elapsed {end_embeddings - start_embeddings}s----------------")
