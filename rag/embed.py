@@ -5,21 +5,22 @@ from timeit import default_timer as timer
 
 import psycopg
 import ray
+from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from pgvector.psycopg import register_vector
 
+load_dotenv()
 # DB connection settings
-DB_NAME = os.getenv('DB_NAME'),
-DB_USER = os.getenv('DB_USER'),
+DB_NAME = os.getenv('DB_NAME')
+DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_HOST = os.getenv('DB_HOST')
 DB_PORT = os.getenv('DB_PORT')
 
 
 class EmbedChunks:
-    def __init__(self, model_name, optimal="cpu", batch_size=100):
-        device = "cuda" if optimal == "gpu" else "cpu"
+    def __init__(self, model_name, device, batch_size=100):
         self.embedding_model = HuggingFaceEmbeddings(
             model_name=model_name,
             model_kwargs={"device": device},
@@ -67,13 +68,16 @@ def chunk_section(section, chunk_size, chunk_overlap):
 
 
 def get_resources():
-    print(f"Number of GPUs: {ray.cluster_resources().get("GPU", 0)}")
-    print(f"Number of CPUs: {ray.cluster_resources().get("CPU", 0)}")
-    print(f"Number of nodes: {len(ray.nodes())}")
+    num_cpus = int(ray.cluster_resources().get("CPU", 0) // 4)
+    num_gpus = int(ray.cluster_resources().get("GPU", 0))
+    num_nodes = len(ray.nodes())
+    print(f"Number of CPUs: {num_cpus}")
+    print(f"Number of GPUs: {num_gpus}")
+    print(f"Number of nodes: {num_nodes}")
     return {
-        "num_cpus": ray.cluster_resources().get("CPU", 0) // 2, # use 50% of available CPUs
-        "num_gpus": ray.cluster_resources().get("GPU", 0),
-        "num_nodes": len(ray.nodes())
+        "num_cpus": num_cpus,
+        "num_gpus": num_gpus,
+        "num_nodes": num_nodes
     }
 
 
@@ -92,26 +96,26 @@ def build_index(data, chunk_size, chunk_overlap, batch_size, embedding_model_nam
     # Embed chunks
     embedded_chunks = chunks_ds.map_batches(
         EmbedChunks,
-        fn_constructor_kwargs={"model_name": embedding_model_name},
+        fn_constructor_kwargs={"model_name": embedding_model_name, "device": "cuda" if resources["num_gpus"] > 0 else "cpu"},
+        batch_size=batch_size,
+        num_cpus=resources["num_cpus"],
+        num_gpus=resources["num_gpus"],
+        concurrency=resources["num_nodes"],
+    )
+
+    # Index data
+    embedded_chunks.map_batches(
+        StoreEmbedding,
         batch_size=batch_size,
         num_cpus=resources["num_cpus"],
         num_gpus=resources["num_gpus"],
         concurrency=resources["num_nodes"]
-    ).take(10)
-    print(embedded_chunks)
-
-    # Index data
-    # embedded_chunks.map_batches(
-    #     StoreEmbedding,
-    #     batch_size=batch_size,
-    #     num_cpus=num_cpus,
-    #     num_gpus=num_gpus,
-    #     concurrency=concurrency
-    # ).count()
+    ).count()
 
     # Save to SQL dump
     # execute_bash(f"sudo -u postgres pg_dump -c > {sql_dump_fp}")
-    # print("Updated the index!")
+
+    print("Updated the index!")
 
 
 if __name__ == "__main__":
@@ -128,7 +132,6 @@ if __name__ == "__main__":
     chunk_size = 300
     chunk_overlap = 50
     batch_size = 100
-
     start_embeddings = timer()
     build_index(space_data, chunk_size, chunk_overlap, batch_size, embedding_model_name)
     end_embeddings = timer()
