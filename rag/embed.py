@@ -18,6 +18,10 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_HOST = os.getenv('DB_HOST')
 DB_PORT = os.getenv('DB_PORT')
 
+NUM_CPUS = os.getenv('NUM_CPUS')
+NUM_GPUS = os.getenv('NUM_GPUS')
+NUM_NODES = os.getenv('NUM_NODES')
+
 
 class EmbedChunks:
     def __init__(self, model_name, device, batch_size=100):
@@ -68,9 +72,9 @@ def chunk_section(section, chunk_size, chunk_overlap):
 
 
 def get_resources():
-    num_cpus = int(ray.cluster_resources().get("CPU", 0) // 4)
-    num_gpus = int(ray.cluster_resources().get("GPU", 0))
-    num_nodes = len(ray.nodes())
+    num_cpus = int(ray.cluster_resources().get("CPU", 0)) if not NUM_CPUS else int(NUM_CPUS)
+    num_gpus = int(ray.cluster_resources().get("GPU", 0)) if not NUM_GPUS else int(NUM_GPUS)
+    num_nodes = len(ray.nodes()) if not NUM_NODES else int(NUM_NODES)
     print(f"Number of CPUs: {num_cpus}")
     print(f"Number of GPUs: {num_gpus}")
     print(f"Number of nodes: {num_nodes}")
@@ -96,7 +100,8 @@ def build_index(data, chunk_size, chunk_overlap, batch_size, embedding_model_nam
     # Embed chunks
     embedded_chunks = chunks_ds.map_batches(
         EmbedChunks,
-        fn_constructor_kwargs={"model_name": embedding_model_name, "device": "cuda" if resources["num_gpus"] > 0 else "cpu"},
+        fn_constructor_kwargs={"model_name": embedding_model_name,
+                               "device": "cuda" if resources["num_gpus"] > 0 else "cpu"},
         batch_size=batch_size,
         num_cpus=resources["num_cpus"],
         num_gpus=resources["num_gpus"],
