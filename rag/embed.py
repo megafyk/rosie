@@ -1,26 +1,15 @@
 import json
-import os
 from functools import partial
 from timeit import default_timer as timer
 
-import psycopg
+import psycopg2
 import ray
-from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from pgvector.psycopg import register_vector
+from pgvector.psycopg2 import register_vector
 
-load_dotenv()
-# DB connection settings
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_HOST = os.getenv('DB_HOST')
-DB_PORT = os.getenv('DB_PORT')
-
-NUM_CPUS = os.getenv('NUM_CPUS')
-NUM_GPUS = os.getenv('NUM_GPUS')
-NUM_NODES = os.getenv('NUM_NODES')
+from rag.config import EMBEDDING_MODEL_NAME, NUM_NODES, NUM_CPUS, NUM_GPUS, DB_NAME, DB_USER, DB_PORT, DB_HOST, \
+    DB_PASSWORD
 
 
 class EmbedChunks:
@@ -39,7 +28,7 @@ class EmbedChunks:
 
 class StoreEmbedding:
     def __call__(self, batch):
-        with psycopg.connect(
+        with psycopg2.connect(
                 f"dbname={DB_NAME} user={DB_USER} host={DB_HOST} port={DB_PORT} password={DB_PASSWORD}"
         ) as conn:
             register_vector(conn)
@@ -132,7 +121,7 @@ if __name__ == "__main__":
 
     print("----------------start embedding----------------")
 
-    embedding_model_name = "dangvantuan/vietnamese-embedding"
+    embedding_model_name = EMBEDDING_MODEL_NAME
 
     chunk_size = 300
     chunk_overlap = 50
