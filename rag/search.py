@@ -1,7 +1,13 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import time
 import numpy as np
 from langchain_huggingface import HuggingFaceEmbeddings
 
-from rag.config import EMBEDDING_MODEL_NAME
+from rag.config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER
 from rag.database import db
 
 
@@ -25,20 +31,55 @@ def lexical_search(index, query, chunks, k):
 
 
 if __name__ == "__main__":
-    user_query = "Hello world"
+    # Move model to GPU if available
+    # device = 0 if torch.cuda.is_available() else -1
+    device = "cpu"
+    query = TEST_PART_QUESTION
     embedding_model_name = EMBEDDING_MODEL_NAME
-    embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": "cpu"},
-                                            encode_kwargs={"device": "cpu", "batch_size": 10})
-    semantic_context = semantic_search(user_query, embedding_model, 10)
+    embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": device},
+                                            encode_kwargs={"device": device, "batch_size": 100})
+    semantic_context = semantic_search(query, embedding_model, 10)
     context = "\n".join([c["text"] for c in semantic_context])
 
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    prompt = f"""
+{TEST_PART_SYSTEM}
+
+{TEST_PART_QUESTION}
+
+{TEST_PART_CONTEXT} {context}
+
+{TEST_PART_ANSWER}
+    """
+    print(prompt)
+    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
     model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     llm = AutoModelForCausalLM.from_pretrained(model_id)
 
-    prompt = f"{user_query}\n\n{context}\n"
-    inputs = tokenizer(prompt, return_tensors="pt").to("cpu")
-    output = llm.generate(**inputs, max_new_tokens=100, temperature=0.7, do_sample=True)
-    print(tokenizer.decode(output[0], skip_special_tokens=True))
+    max_retries = 3
+    retry_count = 0
+    retry_interval = 3
+    temperature = 0.7
+    max_new_tokens = 10
+
+    while retry_count <= max_retries:
+        try:
+
+            # Create a text-generation pipeline.
+            generator = pipeline(
+                "text-generation",
+                model=llm,
+                tokenizer=tokenizer,
+                device=device,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=True
+            )
+
+            # Generate a response.
+            outputs = generator(prompt)
+        except Exception as e:
+            print(f"Exception: {e}")
+            time.sleep(retry_interval)
+            retry_count += 1
