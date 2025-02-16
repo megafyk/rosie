@@ -1,7 +1,11 @@
+python-dotenv
+# confluence
 atlassian-python-api
 beautifulsoup4
-python-dotenv
+PyMuPDF
+
 ray
+torch
 transformers
 langchain
 langchain-community
@@ -9,7 +13,10 @@ langchain-huggingface
 sentence-transformers
 sentencepiece
 
-# Vector DB
+# Inmemory Vector DB
+faiss-cpu
+
+# PostgreSQL Vector DB
 asyncpg
 pgvector
 psycopg[binary,pool]

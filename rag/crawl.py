@@ -1,18 +1,18 @@
 import json
-import os
 
 from atlassian import Confluence
-from dotenv import load_dotenv
 
-load_dotenv()
+from config import CONFLUENCE_URL, CONFLUENCE_SPACE_KEY, CONFLUENCE_USERNAME, CONFLUENCE_PASSWORD
 
 # Confluence API
 confluence = Confluence(
-    url=os.getenv('CONFLUENCE_URL'),
-    username=os.getenv('CONFLUENCE_USERNAME'),
-    password=os.getenv('CONFLUENCE_PASSWORD')
+    url=CONFLUENCE_URL,
+    username=CONFLUENCE_USERNAME,
+    password=CONFLUENCE_PASSWORD
 )
-SPACE_KEY = os.getenv('CONFLUENCE_SPACE_KEY')
+SPACE_KEY = CONFLUENCE_SPACE_KEY
+
+GET_CONFLUENCE = "body.storage"
 
 
 def get_child_pages(page_id, start=0, limit=100):
@@ -24,7 +24,7 @@ def get_child_pages(page_id, start=0, limit=100):
         type="page",
         start=start,
         limit=limit,
-        expand="body.storage"
+        expand=GET_CONFLUENCE
     )
     return children
 
@@ -34,7 +34,7 @@ def fetch_page_content_recursively(page_id, level=0):
     Fetch the content of a page and recursively fetch its child pages.
     """
     # Get the current page
-    page = confluence.get_page_by_id(page_id=page_id, expand="body.storage")
+    page = confluence.get_page_by_id(page_id=page_id, expand=GET_CONFLUENCE)
 
     title = page.get("title")
     body = page["body"]["storage"]["value"]  # HTML content of the page

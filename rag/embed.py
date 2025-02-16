@@ -8,8 +8,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from pgvector.psycopg2 import register_vector
 
-from rag.config import EMBEDDING_MODEL_NAME, NUM_NODES, NUM_CPUS, NUM_GPUS, DB_NAME, DB_USER, DB_PORT, DB_HOST, \
-    DB_PASSWORD
+from config import EMBEDDING_MODEL_NAME, NUM_NODES, NUM_CPUS, NUM_GPUS, DB_NAME, DB_USER, DB_PORT, DB_HOST, DB_PASSWORD
 
 
 class EmbedChunks:

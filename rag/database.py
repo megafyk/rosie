@@ -1,7 +1,7 @@
 from pgvector.psycopg2 import register_vector
 from psycopg2 import pool
 
-from rag.config import DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_MIN_CONN, DB_MAX_CONN
+from config import DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_MIN_CONN, DB_MAX_CONN
 
 
 class Database:

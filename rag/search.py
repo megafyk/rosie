@@ -1,14 +1,11 @@
-import os
-import sys
+from timeit import default_timer as timer
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import time
 import numpy as np
 from langchain_huggingface import HuggingFaceEmbeddings
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-from rag.config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER
-from rag.database import db
+from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER
+from database import db
 
 
 def semantic_search(query, embedding_model, k):
@@ -41,45 +38,31 @@ if __name__ == "__main__":
     semantic_context = semantic_search(query, embedding_model, 10)
     context = "\n".join([c["text"] for c in semantic_context])
 
-    prompt = f"""
-{TEST_PART_SYSTEM}
-
-{TEST_PART_QUESTION}
-
-{TEST_PART_CONTEXT} {context}
-
-{TEST_PART_ANSWER}
-    """
-    print(prompt)
-    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-
     model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    llm = AutoModelForCausalLM.from_pretrained(model_id)
 
-    max_retries = 3
-    retry_count = 0
-    retry_interval = 3
-    temperature = 0.7
-    max_new_tokens = 10
+    model = AutoModelForCausalLM.from_pretrained(model_id)
 
-    while retry_count <= max_retries:
-        try:
+    prompt = f"""
+    {TEST_PART_SYSTEM} {TEST_PART_ANSWER}
+    {TEST_PART_CONTEXT} {context}
+    {TEST_PART_QUESTION}
+    """
 
-            # Create a text-generation pipeline.
-            generator = pipeline(
-                "text-generation",
-                model=llm,
-                tokenizer=tokenizer,
-                device=device,
-                max_new_tokens=max_new_tokens,
-                temperature=temperature,
-                do_sample=True
-            )
-
-            # Generate a response.
-            outputs = generator(prompt)
-        except Exception as e:
-            print(f"Exception: {e}")
-            time.sleep(retry_interval)
-            retry_count += 1
+    print(prompt)
+    pipeline = pipeline(
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        task="text-generation",
+        temperature=0.2,
+        do_sample=True,
+        repetition_penalty=1.1,
+        return_full_text=False,
+        max_new_tokens=500
+    )
+    start_time = timer()
+    outputs = pipeline(prompt)
+    end_time = timer()
+    print(outputs)
+    print(f"Elapsed {end_time - start_time}s")

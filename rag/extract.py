@@ -1,8 +1,10 @@
 import hashlib
 import json
+import re
 from collections import deque
 
-from bs4 import BeautifulSoup, Tag
+import unicodedata
+from bs4 import BeautifulSoup
 
 
 def generate_id_md5(input_string: str) -> str:
@@ -14,34 +16,28 @@ def generate_id_md5(input_string: str) -> str:
     return md5_hash.hexdigest()
 
 
+def clean_text(text: str) -> str:
+    """
+    Normalize and clean text.
+    """
+    text = text.replace("\\", " ")
+    return " ".join(
+        re.sub(r'\s+', ' ', line.strip())
+        for line in unicodedata.normalize("NFKC", text).splitlines()
+        if line.strip()
+    )
+
 def extract_sections_from_page(id, title, body):
     """
     Extract text from HTML content.
     """
-    no_data_tags = ['script', 'style', 'meta', 'link', 'noscript', 'header', 'footer']
-    header_tags = ["h1", "h2", "h3", "h4", "h5", "h6"]
-
     soup = BeautifulSoup(body, "html.parser")
     # Cleanup unwanted elements
-    for element in soup(no_data_tags):
-        element.decompose()
+    for tag in soup.find_all(['script', 'style', 'meta', 'link', 'noscript', 'header', 'footer']):
+        tag.decompose()
 
-    # split soup data into sections, each sections is a header tag
-
-    headers = soup.find_all(header_tags)
-
-    if not headers:
-        # No headers found - return default section
-        text = soup.get_text(strip=True)
-        return [{'id': f"{id}_{generate_id_md5(title)}", 'title': title, 'content': ' '.join(text.split())}]
-
-    return [{
-        'id': f"{id}_{generate_id_md5(h.get_text(strip=True))}",
-        'title': h.get_text(strip=True),
-        'content': ' '.join([t.get_text(strip=True) if isinstance(t, Tag) else str(t).strip()
-                             for t in h.next_siblings
-                             if t is not nh and not (isinstance(t, Tag) and t.name in header_tags)])
-    } for h, nh in zip(headers, headers[1:] + [None])]
+    return [{'id': f"{id}_{generate_id_md5(title)}", 'title': title,
+             'content': clean_text(soup.get_text(strip=True))}]
 
 
 def extract_data_from_pages(pages):

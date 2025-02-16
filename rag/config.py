@@ -4,6 +4,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+CONFLUENCE_URL = os.getenv('CONFLUENCE_URL'),
+CONFLUENCE_USERNAME = os.getenv('CONFLUENCE_USERNAME'),
+CONFLUENCE_PASSWORD = os.getenv('CONFLUENCE_PASSWORD')
+CONFLUENCE_SPACE_KEY = os.getenv('CONFLUENCE_SPACE_KEY')
+
 DB_NAME = os.getenv('DB_NAME')
 DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
