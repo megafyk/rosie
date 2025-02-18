@@ -2,10 +2,12 @@ import hashlib
 import json
 import re
 from collections import deque
+from timeit import default_timer as timer
 
 import pandas as pd
 import unicodedata
 from bs4 import BeautifulSoup
+from pandas import DataFrame
 
 
 def generate_id_md5(input_string: str) -> str:
@@ -29,7 +31,7 @@ def clean_text(text: str) -> str:
     ).lower()
 
 
-def extract_tables(table):
+def extract_tables(table) -> list[DataFrame]:
     """Converts an HTML table to a list of pandas DataFrames, treating nested tables as separate tables."""
     tables = []
     rows = []
@@ -48,7 +50,8 @@ def extract_tables(table):
         df = pd.DataFrame(rows)
         df.columns = df.iloc[0]  # Set first row as header
         df = df[1:].reset_index(drop=True)
-        df = df[df.columns.dropna()]
+        df = df.loc[:, df.columns.notna() & (df.columns != '')]  # remove None header columns
+        df = df.loc[:, ~df.columns.duplicated(keep="first")]  # remove duplicate columns
         tables.append(df)
 
     return tables
@@ -101,6 +104,7 @@ def extract_sections_from_page(id, title, body):
             })
     return secs
 
+
 def extract_data_from_pages(pages):
     data = []
     queue = deque(pages)
@@ -117,7 +121,7 @@ def extract_data_from_pages(pages):
                 data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': content})
 
             for df in sec['tables']:
-                tbl_content = df.to_json(orient='records')
+                tbl_content = df.to_json(orient='records', force_ascii=False)
                 if tbl_content:
                     data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': tbl_content})
 
@@ -134,14 +138,15 @@ if __name__ == "__main__":
         print(sections[6]['tables'][19].to_json(orient='records', force_ascii=False))
     """
 
-
     # read data from space_hierarchy.json line by line and extract text from HTML content
+    start_time = timer()
     print("----------------start extract----------------")
-    with open("../datasets/space_hierarchy.json") as file:
+    with open("../datasets/space_hierarchy.json", encoding="utf-8") as file:
         space_data = extract_data_from_pages(json.load(file))
 
     file_name = "../datasets/space_data.json"
     with open(file_name, "w", encoding="utf-8") as f:
         json.dump(space_data, f, indent=4, ensure_ascii=False)
-
+    end_time = timer()
     print("-----------------end extract----------------")
+    print(f"Elapped {end_time - start_time}s")
