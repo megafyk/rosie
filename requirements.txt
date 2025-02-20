@@ -4,7 +4,7 @@ atlassian-python-api
 beautifulsoup4
 PyMuPDF
 
-ray
+ray[all]
 torch
 transformers
 langchain
@@ -12,6 +12,8 @@ langchain-community
 langchain-huggingface
 sentence-transformers
 sentencepiece
+underthesea
+pandas
 
 # Inmemory Vector DB
 faiss-cpu

@@ -1,13 +1,14 @@
 import hashlib
 import json
 import re
+import unicodedata
 from collections import deque
 from timeit import default_timer as timer
 
 import pandas as pd
-import unicodedata
 from bs4 import BeautifulSoup
 from pandas import DataFrame
+from underthesea import text_normalize
 
 
 def generate_id_md5(input_string: str) -> str:
@@ -24,11 +25,11 @@ def clean_text(text: str) -> str:
     Normalize and clean text.
     """
     text = text.lower()
-    return " ".join(
-        re.sub(r'[\\|\s+]', ' ', line.strip())
+    return text_normalize(" ".join(
+        re.sub(r'[\\|\s+|\d+(\.\d+)+]', ' ', line.strip())
         for line in unicodedata.normalize("NFKC", text).splitlines()
         if line.strip()
-    ).lower()
+    ))
 
 
 def extract_tables(table) -> list[DataFrame]:
@@ -98,7 +99,7 @@ def extract_sections_from_page(id, title, body):
         if paragraphs or tables:
             secs.append({
                 'id': f"{id}_{generate_id_md5(cur_section)}",
-                'section': cur_section,
+                'section': clean_text(cur_section),
                 'paragraphs': paragraphs,
                 'tables': tables,
             })
@@ -114,16 +115,17 @@ def extract_data_from_pages(pages):
         queue.extend(page['children'])
 
         for sec in extract_sections_from_page(page['id'], page['title'], page['body']):
-            title = f"{page['title']} {sec['section']}"
+            title = clean_text(f"{sec['section']} {page['title']}")
             content = ' '.join(sec['paragraphs'])
 
             if content:
-                data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': content})
-
+                data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': title + " " + content})
+            df: DataFrame
             for df in sec['tables']:
-                tbl_content = df.to_json(orient='records', force_ascii=False)
+                tbl_content = df.to_csv(index=False, sep='\t')
                 if tbl_content:
-                    data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': tbl_content})
+                    data.append(
+                        {'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': title + " " + tbl_content})
 
     return data
 
