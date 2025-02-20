@@ -54,7 +54,7 @@ def chunk_section(section, chunk_size, chunk_overlap):
         length_function=len,
     )
     chunks = text_splitter.create_documents(
-        texts=[f"{section['title']} {section['content']}"], metadatas=[{'source': section['page_id']}]
+        texts=[f"{section['content']}"], metadatas=[{'source': section['page_id']}]
     )
     return [{'text': chunk.page_content, 'source': chunk.metadata['source']} for chunk in chunks]
 

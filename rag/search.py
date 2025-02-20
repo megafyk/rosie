@@ -7,6 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER
 from database import db
+from rag.config import LLM_MODEL_NAME
 
 
 def semantic_search(query, embedding_model, k):
@@ -37,9 +38,9 @@ if __name__ == "__main__":
     embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": device},
                                             encode_kwargs={"device": device, "batch_size": 100})
     semantic_context = semantic_search(query, embedding_model, 10)
-    context = "\n".join([c["text"] for c in semantic_context])
+    context = "\n\n".join([c["text"] for c in semantic_context])
 
-    model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+    model_id = LLM_MODEL_NAME
     tokenizer = AutoTokenizer.from_pretrained(model_id)
 
     model = AutoModelForCausalLM.from_pretrained(model_id)
@@ -61,7 +62,9 @@ if __name__ == "__main__":
 
 
     template = """{test_part_system} {test_part_answer}
+
     {test_part_context} {context}
+
     {test_part_question}"""
 
     prompt_template = PromptTemplate(
@@ -81,7 +84,7 @@ if __name__ == "__main__":
     print(prompt)
 
     start_time = timer()
-    outputs = llm(prompt)
+    output = llm.invoke(prompt)
     end_time = timer()
-    print(outputs[0]["generated_text"])
+    print(output)
     print(f"Elapsed {end_time - start_time}s")

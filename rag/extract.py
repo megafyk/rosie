@@ -115,17 +115,15 @@ def extract_data_from_pages(pages):
         queue.extend(page['children'])
 
         for sec in extract_sections_from_page(page['id'], page['title'], page['body']):
-            title = clean_text(f"{sec['section']} {page['title']}")
+            title = clean_text(f"{sec['section']}")
             content = ' '.join(sec['paragraphs'])
-
-            if content:
-                data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': title + " " + content})
             df: DataFrame
             for df in sec['tables']:
                 tbl_content = df.to_csv(index=False, sep='\t')
-                if tbl_content:
-                    data.append(
-                        {'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': title + " " + tbl_content})
+                content = f"{content}\n{tbl_content}" if content else tbl_content
+
+            if content:
+                data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': f"{title}\n{content}"})
 
     return data
 
