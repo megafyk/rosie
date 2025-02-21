@@ -48,11 +48,13 @@ class StoreEmbedding:
 
 def chunk_section(section, chunk_size, chunk_overlap):
     text_splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n", "\n", " ", ""],
+        separators=["\n\n"],
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         length_function=len,
     )
+
+
     chunks = text_splitter.create_documents(
         texts=[f"{section['content']}"], metadatas=[{'source': section['page_id']}]
     )

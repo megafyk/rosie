@@ -60,7 +60,7 @@ def extract_tables(table) -> list[DataFrame]:
 
 def extract_section_data(sibling, paragraphs, tables):
     if sibling.name in ("p", "span", "ul", "ol", "strong", "em", "u"):
-        tx = clean_text(clean_text(sibling.get_text(separator=" ", strip=True)))
+        tx = clean_text(sibling.get_text(separator=" ", strip=True))
         if tx:
             paragraphs.append(tx)
     elif sibling.name == "table":
@@ -115,15 +115,16 @@ def extract_data_from_pages(pages):
         queue.extend(page['children'])
 
         for sec in extract_sections_from_page(page['id'], page['title'], page['body']):
-            title = clean_text(f"{sec['section']}")
-            content = ' '.join(sec['paragraphs'])
+            page_title = clean_text(f"{page['title']}")
+            section_title = clean_text(f"{sec['section']}")
+            content = [' '.join(sec['paragraphs'])]
             df: DataFrame
             for df in sec['tables']:
-                tbl_content = df.to_csv(index=False, sep='\t')
-                content = f"{content}\n{tbl_content}" if content else tbl_content
+                content.extend(df.stack().reset_index(drop=True))
 
             if content:
-                data.append({'id': sec['id'], 'page_id': page['id'], 'title': title, 'content': f"{title}\n{content}"})
+                data.append({'id': sec['id'], 'page_id': page['id'], 'title': section_title,
+                             'content': f"{page_title} - {section_title} - {' '.join(content)}"})
 
     return data
 

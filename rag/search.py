@@ -5,7 +5,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER
+from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER, \
+    QUESTION
 from database import db
 from rag.config import LLM_MODEL_NAME
 
@@ -33,7 +34,7 @@ if __name__ == "__main__":
     # Move model to GPU if available
     # device = 0 if torch.cuda.is_available() else -1
     device = "cpu"
-    query = TEST_PART_QUESTION
+    query = QUESTION
     embedding_model_name = EMBEDDING_MODEL_NAME
     embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": device},
                                             encode_kwargs={"device": device, "batch_size": 100})
@@ -63,12 +64,15 @@ if __name__ == "__main__":
 
     template = """{test_part_system} {test_part_answer}
 
-    {test_part_context} {context}
+    {test_part_context} 
+    {context}
 
-    {test_part_question}"""
+    {test_part_question}
+    {question}
+    """
 
     prompt_template = PromptTemplate(
-        input_variables=["test_part_system", "test_part_answer", "test_part_context", "context", "test_part_question"],
+        input_variables=["test_part_system", "test_part_answer", "test_part_context", "context", "test_part_question", "question"],
         template=template
     )
 
@@ -77,7 +81,8 @@ if __name__ == "__main__":
         test_part_answer=TEST_PART_ANSWER,
         test_part_context=TEST_PART_CONTEXT,
         context=context,
-        test_part_question=TEST_PART_QUESTION
+        test_part_question=TEST_PART_QUESTION,
+        question=QUESTION
     )
 
     print("Generated Prompt:")

@@ -3,6 +3,7 @@ python-dotenv
 atlassian-python-api
 beautifulsoup4
 PyMuPDF
+tabulate
 
 ray[all]
 torch
