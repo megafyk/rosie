@@ -117,14 +117,24 @@ def extract_data_from_pages(pages):
         for sec in extract_sections_from_page(page['id'], page['title'], page['body']):
             page_title = clean_text(f"{page['title']}")
             section_title = clean_text(f"{sec['section']}")
-            content = [' '.join(sec['paragraphs'])]
-            df: DataFrame
-            for df in sec['tables']:
-                content.extend(df.stack().reset_index(drop=True))
+            content = ' '.join(sec['paragraphs'])
 
             if content:
                 data.append({'id': sec['id'], 'page_id': page['id'], 'title': section_title,
-                             'content': f"{page_title} - {section_title} - {' '.join(content)}"})
+                             'content': f"{page_title} - {section_title} - {content}"})
+
+            df: DataFrame
+            metadata = {
+                "table_name": page_title,
+                "table_description": section_title
+            }
+            for df in sec['tables']:
+                tbl_content = {
+                    **metadata,
+                    "data": df.to_dict(orient='records')
+                }
+                data.append({'id': sec['id'], 'page_id': page['id'], 'title': section_title,
+                             'content': tbl_content})
 
     return data
 

@@ -46,7 +46,6 @@ if __name__ == "__main__":
 
     model = AutoModelForCausalLM.from_pretrained(model_id)
 
-
     pipeline = pipeline(
         model=model,
         tokenizer=tokenizer,
@@ -61,18 +60,19 @@ if __name__ == "__main__":
 
     llm = HuggingFacePipeline(pipeline=pipeline)
 
+    template = """
+{test_part_system} {test_part_answer}
 
-    template = """{test_part_system} {test_part_answer}
+{test_part_context} 
+{context}
 
-    {test_part_context} 
-    {context}
-
-    {test_part_question}
-    {question}
+{test_part_question}
+{question}
     """
 
     prompt_template = PromptTemplate(
-        input_variables=["test_part_system", "test_part_answer", "test_part_context", "context", "test_part_question", "question"],
+        input_variables=["test_part_system", "test_part_answer", "test_part_context", "context", "test_part_question",
+                         "question"],
         template=template
     )
 
