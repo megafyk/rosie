@@ -6,9 +6,8 @@ from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER, \
-    QUESTION
+    QUESTION, LLM_MODEL_NAME, LLM_MODEL_TOKEN
 from database import db
-from rag.config import LLM_MODEL_NAME
 
 
 def semantic_search(query, embedding_model, k):
@@ -38,13 +37,22 @@ if __name__ == "__main__":
     embedding_model_name = EMBEDDING_MODEL_NAME
     embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": device},
                                             encode_kwargs={"device": device, "batch_size": 100})
-    semantic_context = semantic_search(query, embedding_model, 10)
-    context = "\n\n".join([c["text"] for c in semantic_context])
+    semantic_context = semantic_search(query, embedding_model, 50)
+    contexts = []
+    for c in semantic_context:
+        tmp: str = c["text"]
+        if "@#@#@" in tmp:
+            parts = tmp.split("@#@#@", 1)
+            if len(parts) > 1:
+                contexts.append(parts[1])
+        else:
+            contexts.append(tmp)
+
+    context = "\n".join(contexts)
 
     model_id = LLM_MODEL_NAME
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-    model = AutoModelForCausalLM.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, token=LLM_MODEL_TOKEN)
+    model = AutoModelForCausalLM.from_pretrained(model_id, token=LLM_MODEL_TOKEN)
 
     pipeline = pipeline(
         model=model,
@@ -60,14 +68,13 @@ if __name__ == "__main__":
 
     llm = HuggingFacePipeline(pipeline=pipeline)
 
-    template = """
-{test_part_system} {test_part_answer}
+    template = """{test_part_system} {test_part_answer}
 
-{test_part_context} 
-{context}
-
-{test_part_question}
-{question}
+    {test_part_context} 
+    {context}
+    
+    {test_part_question}
+    {question}
     """
 
     prompt_template = PromptTemplate(

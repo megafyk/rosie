@@ -120,22 +120,28 @@ def extract_data_from_pages(pages):
             content = ' '.join(sec['paragraphs'])
 
             if content:
-                data.append({'id': sec['id'], 'page_id': page['id'], 'title': section_title,
-                             'content': f"{page_title} - {section_title} - {content}"})
+                data.append({
+                    'id': sec['id'],
+                    'page_id': page['id'],
+                    'title': section_title,
+                    'content': f"{page_title}, {section_title} {content}"
+                })
 
             df: DataFrame
-            metadata = {
-                "table_name": page_title,
-                "table_description": section_title
-            }
-            for df in sec['tables']:
-                tbl_content = {
-                    **metadata,
-                    "data": df.to_dict(orient='records')
-                }
-                data.append({'id': sec['id'], 'page_id': page['id'], 'title': section_title,
-                             'content': tbl_content})
 
+            for df in sec['tables']:
+                tbl_header, tbl_rows = df.columns.tolist(), df.values.tolist()
+                for row in tbl_rows:
+                    row_content = []
+                    for i, cell in enumerate(row):
+                        if cell:
+                            row_content.append(f"{tbl_header[i]}: {cell}")
+                    data.append({
+                        'id': sec['id'],
+                        'page_id': page['id'],
+                        'title': section_title,
+                        'content': f"{page_title}, {section_title} @#@#@{', '.join(row_content)}"
+                    })
     return data
 
 

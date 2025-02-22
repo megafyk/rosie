@@ -21,8 +21,11 @@ class EmbedChunks:
 
     def __call__(self, batch):
         embeddings = self.embedding_model.embed_documents(batch["text"])
-        return {"text": batch["text"], "source": batch["source"], "embeddings":
-            embeddings}
+        return {
+            "text": batch["text"],
+            "source": batch["source"],
+            "embeddings": embeddings
+        }
 
 
 class StoreEmbedding:
@@ -36,11 +39,12 @@ class StoreEmbedding:
                         batch["text"], batch["source"], batch["embeddings"]
                 ):
                     cur.execute(
-                        "INSERT INTO document (text, source, embedding) VALUES (%s, %s, %s)",
+                        "INSERT INTO document (text, source, embedding) select %s, %s, %s WHERE NOT EXISTS (SELECT 1 FROM document WHERE text = %s)",
                         (
                             text,
                             source,
                             embedding,
+                            text
                         ),
                     )
         return {}
@@ -53,7 +57,6 @@ def chunk_section(section, chunk_size, chunk_overlap):
         chunk_overlap=chunk_overlap,
         length_function=len,
     )
-
 
     chunks = text_splitter.create_documents(
         texts=[f"{section['content']}"], metadatas=[{'source': section['page_id']}]
@@ -124,7 +127,7 @@ if __name__ == "__main__":
 
     embedding_model_name = EMBEDDING_MODEL_NAME
 
-    chunk_size = 300
+    chunk_size = 512
     chunk_overlap = 50
     batch_size = 100
     start_embeddings = timer()
