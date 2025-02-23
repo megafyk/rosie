@@ -4,7 +4,7 @@ from timeit import default_timer as timer
 
 import psycopg2
 import ray
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter, RecursiveJsonSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from pgvector.psycopg2 import register_vector
 
@@ -46,18 +46,32 @@ class StoreEmbedding:
         return {}
 
 
-def chunk_section(section, chunk_size, chunk_overlap):
-    text_splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n"],
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-    )
+def chunk_section(section, chunk_size, chunk_overlap, json_max_chunk_size, json_min_chunk_size):
+    text = section['content']
+    try:
+        json_text = json.loads(section['content'])
+    except ValueError:
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            length_function=len,
+        )
 
+        chunks = text_splitter.create_documents(
+            texts=[text],
+            metadatas=[{'source': section['page_id']}]
+        )
+    else:
+        text_splitter = RecursiveJsonSplitter(
+            max_chunk_size=json_max_chunk_size,
+            min_chunk_size=json_min_chunk_size,
+        )
 
-    chunks = text_splitter.create_documents(
-        texts=[f"{section['content']}"], metadatas=[{'source': section['page_id']}]
-    )
+        chunks = text_splitter.create_documents(
+            texts=[json_text],
+            metadatas=[{'source': section['page_id']}],
+            ensure_ascii=False
+        )
     return [{'text': chunk.page_content, 'source': chunk.metadata['source']} for chunk in chunks]
 
 
@@ -75,14 +89,16 @@ def get_resources():
     }
 
 
-def build_index(data, chunk_size, chunk_overlap, batch_size, embedding_model_name):
+def build_index(data, embedding_model_name, **kwargs):
     # docs -> sections -> chunks
     ds = ray.data.from_items(data)
     chunks_ds = ds.flat_map(
         partial(
             chunk_section,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap
+            chunk_size=kwargs.get("chunk_size"),
+            chunk_overlap=kwargs.get("chunk_overlap"),
+            json_max_chunk_size=kwargs.get("json_max_chunk_size"),
+            json_min_chunk_size=kwargs.get("json_min_chunk_size"),
         )
     )
     resources = get_resources()
@@ -92,7 +108,7 @@ def build_index(data, chunk_size, chunk_overlap, batch_size, embedding_model_nam
         EmbedChunks,
         fn_constructor_kwargs={"model_name": embedding_model_name,
                                "device": "cuda" if resources["num_gpus"] > 0 else "cpu"},
-        batch_size=batch_size,
+        batch_size=kwargs.get("batch_size"),
         num_cpus=resources["num_cpus"],
         num_gpus=resources["num_gpus"],
         concurrency=resources["num_nodes"],
@@ -101,7 +117,7 @@ def build_index(data, chunk_size, chunk_overlap, batch_size, embedding_model_nam
     # Index data
     embedded_chunks.map_batches(
         StoreEmbedding,
-        batch_size=batch_size,
+        batch_size=kwargs.get("batch_size"),
         num_cpus=resources["num_cpus"],
         num_gpus=resources["num_gpus"],
         concurrency=resources["num_nodes"]
@@ -122,13 +138,16 @@ if __name__ == "__main__":
 
     print("----------------start embedding----------------")
 
-    embedding_model_name = EMBEDDING_MODEL_NAME
-
-    chunk_size = 300
-    chunk_overlap = 50
-    batch_size = 100
     start_embeddings = timer()
-    build_index(space_data, chunk_size, chunk_overlap, batch_size, embedding_model_name)
+    build_index(
+        space_data,
+        EMBEDDING_MODEL_NAME,
+        batch_size=100,
+        chunk_size=512,
+        chunk_overlap=100,
+        json_max_chunk_size=512,
+        json_min_chunk_size=256
+    )
     end_embeddings = timer()
 
     print(f"\n----------------end embedding Elapsed {end_embeddings - start_embeddings}s----------------")

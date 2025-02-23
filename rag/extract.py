@@ -134,7 +134,7 @@ def extract_data_from_pages(pages):
                     "data": df.to_dict(orient='records')
                 }
                 data.append({'id': sec['id'], 'page_id': page['id'], 'title': section_title,
-                             'content': tbl_content})
+                             'content': json.dumps(tbl_content, ensure_ascii=False)})
 
     return data
 

@@ -6,9 +6,8 @@ from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER, \
-    QUESTION
+    QUESTION, LLM_MODEL_NAME
 from database import db
-from rag.config import LLM_MODEL_NAME
 
 
 def semantic_search(query, embedding_model, k):
@@ -55,19 +54,18 @@ if __name__ == "__main__":
         do_sample=True,
         repetition_penalty=1.1,
         return_full_text=False,
-        max_new_tokens=500
+        max_new_tokens=512
     )
 
     llm = HuggingFacePipeline(pipeline=pipeline)
 
-    template = """
-{test_part_system} {test_part_answer}
+    template = """{test_part_system} {test_part_answer}
 
-{test_part_context} 
-{context}
-
-{test_part_question}
-{question}
+    {test_part_context} 
+    {context}
+    
+    {test_part_question}
+    {question}
     """
 
     prompt_template = PromptTemplate(
