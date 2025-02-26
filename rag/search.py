@@ -1,12 +1,9 @@
-from timeit import default_timer as timer
-
 import numpy as np
 from langchain_core.prompts import PromptTemplate
-from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from langchain_huggingface import HuggingFaceEmbeddings
 
 from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER, \
-    QUESTION, LLM_MODEL_NAME
+    QUESTION
 from database import db
 
 
@@ -40,25 +37,6 @@ if __name__ == "__main__":
     semantic_context = semantic_search(query, embedding_model, 10)
     context = "\n\n".join([c["text"] for c in semantic_context])
 
-    model_id = LLM_MODEL_NAME
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-    model = AutoModelForCausalLM.from_pretrained(model_id)
-
-    pipeline = pipeline(
-        model=model,
-        tokenizer=tokenizer,
-        device=device,
-        task="text-generation",
-        temperature=0.2,
-        do_sample=True,
-        repetition_penalty=1.1,
-        return_full_text=False,
-        max_new_tokens=512
-    )
-
-    llm = HuggingFacePipeline(pipeline=pipeline)
-
     template = """{test_part_system} {test_part_answer}
 
     {test_part_context} 
@@ -82,12 +60,3 @@ if __name__ == "__main__":
         test_part_question=TEST_PART_QUESTION,
         question=QUESTION
     )
-
-    print("Generated Prompt:")
-    print(prompt)
-
-    start_time = timer()
-    output = llm.invoke(prompt)
-    end_time = timer()
-    print(output)
-    print(f"Elapsed {end_time - start_time}s")
