@@ -1,13 +1,18 @@
 import aisuite
 from aisuite.provider import Provider
+from huggingface_hub import login
+from langchain_core.prompts import PromptTemplate
 from langchain_huggingface import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from config import TEST_PART_CONTEXT, LLM_MODEL_TOKEN, TEST_PART_QUESTION
 
 client = aisuite.Client()
 
 
 class LocalProvider(Provider):
     def __init__(self, **kwargs):
+        login(token=LLM_MODEL_TOKEN)
         self.device = kwargs.get("device", "cpu")
         self.temperature = kwargs.get("temperature", 0.2)
         self.do_sample = kwargs.get("do_sample", True)
@@ -16,7 +21,49 @@ class LocalProvider(Provider):
         self.max_new_tokens = kwargs.get("max_new_tokens", 128)
 
     def chat_completions_create(self, model, messages):
-        return self.generate(model, messages)
+
+        context = ""
+        question = ""
+        system = ""
+        for message in messages:
+            if message["role"] == "user":
+                question = message["content"]
+            elif message["role"] == "assistant":
+                context = message["content"]
+            elif message["role"] == "system":
+                system = message["content"]
+
+        template = """{test_part_system}
+
+    {test_part_context} 
+    {context}
+    
+    {test_part_question}
+    {question}
+    """
+
+        prompt_template = PromptTemplate(
+            input_variables=[
+                "test_part_system",
+                "test_part_context",
+                "context",
+                "test_part_question",
+                "question"
+            ],
+            template=template
+        )
+
+        prompt = prompt_template.format(
+            test_part_system=system,
+            test_part_context=TEST_PART_CONTEXT,
+            context=context,
+            test_part_question=TEST_PART_QUESTION,
+            question=question
+        )
+
+        print(prompt)
+
+        return self.generate(model, prompt)
 
     def generate(self, model, message):
         tokenizer = AutoTokenizer.from_pretrained(model)
@@ -39,15 +86,17 @@ class LocalProvider(Provider):
         return response
 
 
-def generate(model: str, messages):
+def generate(model: str, messages: list, kwargs):
     if model.startswith("local"):
+        model = model.split(":")[1]
         # local
-        provider = LocalProvider()
+        provider = LocalProvider(**kwargs)
         response = provider.chat_completions_create(model, messages)
     else:
         # aisuite
         response = client.chat.completions.create(
             model=model,
             messages=messages,
+            **kwargs
         )
     return response

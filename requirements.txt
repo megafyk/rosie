@@ -16,7 +16,7 @@ sentencepiece
 underthesea
 pandas
 
-google-genai
+vertexai
 openai
 aisuite
 

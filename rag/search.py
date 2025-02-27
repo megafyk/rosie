@@ -1,9 +1,7 @@
 import numpy as np
-from langchain_core.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
 
-from config import EMBEDDING_MODEL_NAME, TEST_PART_SYSTEM, TEST_PART_QUESTION, TEST_PART_CONTEXT, TEST_PART_ANSWER, \
-    QUESTION
+from config import EMBEDDING_MODEL_NAME, QUESTION, TEST_PART_SYSTEM, LLM_MODEL_NAME, OPENAI_API_KEY, OPENAI_MODEL
 from database import db
 
 
@@ -26,37 +24,31 @@ def lexical_search(index, query, chunks, k):
     return lexical_context
 
 
+def search(query, **kwargs):
+    device = kwargs.get("device", "cpu")
+    batch_size = kwargs.get("batch_size", 100)
+    embedding_model_name = EMBEDDING_MODEL_NAME
+    embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": device},
+                                            encode_kwargs={"device": device, "batch_size": batch_size})
+    semantic_context = semantic_search(query, embedding_model, 10)
+    context = "\n\n".join([c["text"] for c in semantic_context])
+    return context
+
+
 if __name__ == "__main__":
     # Move model to GPU if available
     # device = 0 if torch.cuda.is_available() else -1
-    device = "cpu"
+
     query = QUESTION
-    embedding_model_name = EMBEDDING_MODEL_NAME
-    embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name, model_kwargs={"device": device},
-                                            encode_kwargs={"device": device, "batch_size": 100})
-    semantic_context = semantic_search(query, embedding_model, 10)
-    context = "\n\n".join([c["text"] for c in semantic_context])
+    context = search(query)
+    messages = [
+        {"role": "system", "content": TEST_PART_SYSTEM},
+        {"role": "assistant", "content": context},
+        {"role": "user", "content": query}
+    ]
 
-    template = """{test_part_system} {test_part_answer}
-
-    {test_part_context} 
-    {context}
-    
-    {test_part_question}
-    {question}
-    """
-
-    prompt_template = PromptTemplate(
-        input_variables=["test_part_system", "test_part_answer", "test_part_context", "context", "test_part_question",
-                         "question"],
-        template=template
-    )
-
-    prompt = prompt_template.format(
-        test_part_system=TEST_PART_SYSTEM,
-        test_part_answer=TEST_PART_ANSWER,
-        test_part_context=TEST_PART_CONTEXT,
-        context=context,
-        test_part_question=TEST_PART_QUESTION,
-        question=QUESTION
-    )
+    from generate import generate
+    # print(generate(f"local:{LLM_MODEL_NAME}", messages, {}))
+    # print(generate(f"openai:{OPENAI_MODEL}", messages, {}))
+    # print(generate(f"deepseek:deepseek-chat", messages, {}))
+    # print(generate(f"google:gemini-2.0-flash", messages, {}))
