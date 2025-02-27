@@ -3,11 +3,56 @@ from aisuite.provider import Provider
 from huggingface_hub import login
 from langchain_core.prompts import PromptTemplate
 from langchain_huggingface import HuggingFacePipeline
+from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from config import TEST_PART_CONTEXT, LLM_MODEL_TOKEN, TEST_PART_QUESTION
+from config import TEST_PART_CONTEXT, LLM_MODEL_TOKEN, TEST_PART_QUESTION, OPENROUTER_API_KEY
 
-client = aisuite.Client()
+client_aisuite = aisuite.Client()
+client_open_router = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+
+
+def messages_to_prompt(messages):
+    context = ""
+    question = ""
+    system = ""
+    for message in messages:
+        if message["role"] == "user":
+            question = message["content"]
+        elif message["role"] == "assistant":
+            context = message["content"]
+        elif message["role"] == "system":
+            system = message["content"]
+
+    template = """{test_part_system}
+
+    {test_part_context} 
+    {context}
+    
+    {test_part_question}
+    {question}
+    """
+
+    prompt_template = PromptTemplate(
+        input_variables=[
+            "test_part_system",
+            "test_part_context",
+            "context",
+            "test_part_question",
+            "question"
+        ],
+        template=template
+    )
+
+    prompt = prompt_template.format(
+        test_part_system=system,
+        test_part_context=TEST_PART_CONTEXT,
+        context=context,
+        test_part_question=TEST_PART_QUESTION,
+        question=question
+    )
+
+    return prompt
 
 
 class LocalProvider(Provider):
@@ -21,49 +66,7 @@ class LocalProvider(Provider):
         self.max_new_tokens = kwargs.get("max_new_tokens", 128)
 
     def chat_completions_create(self, model, messages):
-
-        context = ""
-        question = ""
-        system = ""
-        for message in messages:
-            if message["role"] == "user":
-                question = message["content"]
-            elif message["role"] == "assistant":
-                context = message["content"]
-            elif message["role"] == "system":
-                system = message["content"]
-
-        template = """{test_part_system}
-
-    {test_part_context} 
-    {context}
-    
-    {test_part_question}
-    {question}
-    """
-
-        prompt_template = PromptTemplate(
-            input_variables=[
-                "test_part_system",
-                "test_part_context",
-                "context",
-                "test_part_question",
-                "question"
-            ],
-            template=template
-        )
-
-        prompt = prompt_template.format(
-            test_part_system=system,
-            test_part_context=TEST_PART_CONTEXT,
-            context=context,
-            test_part_question=TEST_PART_QUESTION,
-            question=question
-        )
-
-        print(prompt)
-
-        return self.generate(model, prompt)
+        return self.generate(model, messages_to_prompt(messages))
 
     def generate(self, model, message):
         tokenizer = AutoTokenizer.from_pretrained(model)
@@ -94,9 +97,16 @@ def generate(model: str, messages: list, kwargs):
         response = provider.chat_completions_create(model, messages)
     else:
         # aisuite
-        response = client.chat.completions.create(
+        response = client_aisuite.chat.completions.create(
             model=model,
             messages=messages,
             **kwargs
         )
+    return response
+
+
+def generate_openrouter(model, messages, kwargs):
+    response = client_open_router.chat.completions.create(
+        model=model, messages=messages, **kwargs
+    )
     return response
