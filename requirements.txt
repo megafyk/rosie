@@ -2,6 +2,7 @@ python-dotenv
 # confluence
 atlassian-python-api
 beautifulsoup4
+docstring_parser
 
 ray[all]
 torch
@@ -16,6 +17,7 @@ pandas
 
 openai
 aisuite
+ragas
 
 # Inmemory Vector DB
 faiss-cpu

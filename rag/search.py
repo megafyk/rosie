@@ -1,8 +1,8 @@
-import numpy as np
-from langchain_huggingface import HuggingFaceEmbeddings
 
-from config import EMBEDDING_MODEL_NAME, QUESTION, TEST_PART_SYSTEM, OPENROUTER_MODEL
+import numpy as np
+from config import EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, QUESTION, TEST_PART_SYSTEM
 from database import db
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 def semantic_search(query, embedding_model, k):
@@ -46,13 +46,15 @@ if __name__ == "__main__":
         {"role": "assistant", "content": context},
         {"role": "user", "content": query}
     ]
+    from generate import generate
 
-    # print(generate(f"local:{LLM_MODEL_NAME}", messages, {}))
+    res = generate(f"local:{LLM_MODEL_NAME}", messages, {"device": "cpu", "temperature": 0.2, "return_full_text": False, "max_new_tokens": 256})
+    print(res.choices[0].message.content)
     # print(generate(f"openai:{OPENAI_MODEL}", messages, {}))
     # print(generate(f"deepseek:deepseek-chat", messages, {}))
     # print(generate(f"google:gemini-2.0-flash", messages, {}))
 
-    from generate import generate_openrouter
 
-    res = generate_openrouter(OPENROUTER_MODEL, messages, {"temperature": 0.2})
-    print(res.choices[0].message.content)
+
+    # res = generate_openrouter(OPENROUTER_MODEL, messages, {"temperature": 0.2})
+    # print(res.choices[0].message.content)
