@@ -3,8 +3,10 @@ import os
 import time
 from pathlib import Path
 
-from config import EVAL_SYSTEM, LLM_MODEL_NAME, OPENROUTER_MODEL, TEST_PART_SYSTEM
-from generate import generate, generate_openrouter
+from config import LLM_MODEL_NAME, TEST_PART_SYSTEM
+from generate import generate
+from ragas import EvaluationDataset, evaluate
+from ragas.metrics import BleuScore, RougeScore
 from search import search
 
 
@@ -22,6 +24,7 @@ def save_intermediate_results(results, file_path, idx):
         print(f"Saved intermediate results after processing item {idx}")
     except Exception as e:
         print(f"Error saving intermediate results: {e}")
+
 
 if __name__ == "__main__":
     try:
@@ -50,98 +53,83 @@ if __name__ == "__main__":
         # Process only remaining questions
         for idx in range(processed_questions, total_questions):
             q = eval_data[idx]
-            question = q['question']
-            print(f"Processing question {idx+1}/{total_questions}: {question}...")
+            question = q["question"]
+            expected = q["answer"]
+            print(f"Processing question {idx + 1}/{total_questions}: {question}...")
 
             try:
                 # Add delays to avoid rate limits
-                context = search(question)
+                retrieved_contexts = search(question)
                 time.sleep(1)  # Small delay
 
                 messages = [
                     {"role": "system", "content": TEST_PART_SYSTEM},
-                    {"role": "assistant", "content": context},
-                    {"role": "user", "content": question}
+                    {"role": "assistant", "content": retrieved_contexts},
+                    {"role": "user", "content": question},
                 ]
 
-                print(f"Local RAG generate query {idx+1}/{total_questions}...")
-                local_response = generate(f"local:{LLM_MODEL_NAME}", messages, {
-                    "temperature": 0.2,
-                    "max_new_tokens": 128,
-                    "return_full_text": False,
-                    "device": "cpu"
-                })
-                print(local_response.choices[0].message.content)
+                print(f"Local RAG generate query {idx + 1}/{total_questions}...")
+                local = generate(
+                    f"local:{LLM_MODEL_NAME}",
+                    messages,
+                    {
+                        "temperature": 0.2,
+                        "max_new_tokens": 128,
+                        "return_full_text": False,
+                        "device": "cpu",
+                    },
+                )
+
                 # Ensure local_response is string
-                local = local_response.choices[0].message.content if hasattr(local_response, 'choices') and len(local_response.choices) > 0 else str(local_response)
+                local_response = (
+                    local.choices[0].message.content
+                    if hasattr(local, "choices") and len(local.choices) > 0
+                    else str(local)
+                )
+
+                eval_datasets = EvaluationDataset.from_list(
+                    [
+                        {
+                            "user_input": question,
+                            "retrieved_contexts": [retrieved_contexts],
+                            "response": local_response,
+                            "reference": expected,
+                        }
+                    ]
+                )
+
+                evaluation = evaluate(
+                    eval_datasets, metrics=[BleuScore(), RougeScore()]
+                )
+
                 time.sleep(1)  # Small delay
 
-
-                print(f"Reference model generate {idx+1}/{total_questions}...")
-                # refer_response = generate_openrouter(OPENROUTER_MODEL, messages, {
-                #     "temperature": 0.2,
-                #     "max_completion_tokens": 128
-                # })
-
-                refer_response = generate(f"local:{LLM_MODEL_NAME}", messages, {
-                    "temperature": 0.2,
-                    "max_new_tokens": 128,
-                    "return_full_text": False,
-                    "device": "cpu"
-                })
-                print(refer_response.choices[0].message.content)
-                # Extract content safely
-                refer = refer_response.choices[0].message.content if hasattr(refer_response, 'choices') and len(refer_response.choices) > 0 else str(refer_response)
-                time.sleep(2)  # Slightly longer delay for API rate limits
-
-                print(f"Evaluating RAG {idx+1}/{total_questions}...")
-                eval_messages = [
-                    {"role": "system", "content": EVAL_SYSTEM},
-                    {"role": "assistant", "content": f"generated_answer: {local}"},
-                    {"role": "user", "content": f"query: {question}\nreference_answer: {refer}"}
-                ]
-
-
-                # evaluate_response = generate_openrouter(OPENROUTER_MODEL, eval_messages, {
-                #     "temperature": 0.1,
-                #     "max_completion_tokens": 128
-                # })
-
-                evaluate_response = generate(f"local:{LLM_MODEL_NAME}", eval_messages, {
-                    "temperature": 0.1,
-                    "max_new_tokens": 128,
-                    "return_full_text": False,
-                    "device": "cpu"
-                })
-                print(evaluate_response.choices[0].message.content)
-
-                # Safely extract content
-                evaluation = evaluate_response.choices[0].message.content if hasattr(evaluate_response, 'choices') and len(evaluate_response.choices) > 0 else str(evaluate_response)
-
                 # Add result and save intermediate results
-                eval_res.append({
-                    "question": question,
-                    "local": local,
-                    "reference": refer,
-                    "evaluation": evaluation
-                })
+                eval_res.append(
+                    {
+                        "question": question,
+                        "evaluation": evaluation.to_pandas().to_dict(orient="records"),
+                    }
+                )
 
                 # Save after each item
                 save_intermediate_results(eval_res, result_file_path, idx)
-                print(f"Completed evaluation {idx+1}/{total_questions}")
+                print(f"Completed evaluation {idx + 1}/{total_questions}")
 
                 # Add a delay between iterations to give system time to recover resources
                 time.sleep(2)
 
             except Exception as e:
-                print(f"Error processing question {idx+1}: {str(e)}")
+                print(f"Error processing question {idx + 1}: {str(e)}")
                 # Add the failed question to results with error information
-                eval_res.append({
-                    "question": question,
-                    "local": "",
-                    "reference": "",
-                    "evaluation": f"ERROR: {str(e)}"
-                })
+                eval_res.append(
+                    {
+                        "question": question,
+                        "local": "",
+                        "reference": "",
+                        "evaluation": f"ERROR: {str(e)}",
+                    }
+                )
                 # Save even on error
                 save_intermediate_results(eval_res, result_file_path, idx)
                 time.sleep(5)  # Longer delay after error

@@ -1,23 +1,32 @@
 python-dotenv
+
 # confluence
 atlassian-python-api
-beautifulsoup4
-docstring_parser
 
+beautifulsoup4
 ray[all]
 torch
-transformers
+pandas
+
+# nlp
+docstring_parser
+sentencepiece
+underthesea
+
+# llm
 langchain
 langchain-community
 langchain-huggingface
+transformers
 sentence-transformers
-sentencepiece
-underthesea
-pandas
 
 openai
 aisuite
+
+# evaluator
 ragas
+sacrebleu
+rouge_score
 
 # Inmemory Vector DB
 faiss-cpu
