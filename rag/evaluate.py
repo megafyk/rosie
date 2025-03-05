@@ -8,6 +8,7 @@ from generate import generate
 from ragas import EvaluationDataset, evaluate
 from ragas.metrics import BleuScore, RougeScore
 from search import search
+from sentence_transformers import SentenceTransformer, util
 
 
 # Function to save intermediate results
@@ -24,6 +25,51 @@ def save_intermediate_results(results, file_path, idx):
         print(f"Saved intermediate results after processing item {idx}")
     except Exception as e:
         print(f"Error saving intermediate results: {e}")
+
+
+def evaluate_rag_with_sentence_transformers(
+    question, generated_answer, context, expected_answer
+):
+    """
+    Evaluates RAG output using Sentence Transformers for semantic similarity.
+
+    Args:
+        question (str): The user's question.
+        answer (str): The generated answer.
+        context (str): The retrieved context.
+
+    Returns:
+        dict: A dictionary containing evaluation metrics.
+    """
+    model = SentenceTransformer("all-MiniLM-L6-v2")  # Choose a suitable model
+
+    # Calculate embeddings
+    question_embedding = model.encode(question, convert_to_tensor=True)
+    answer_embedding = model.encode(generated_answer, convert_to_tensor=True)
+    context_embedding = model.encode(context, convert_to_tensor=True)
+    expected_embedding = model.encode(expected_answer, convert_to_tensor=True)
+
+    # Calculate semantic similarity
+    answer_similarity = util.pytorch_cos_sim(answer_embedding, context_embedding).item()
+    question_similarity = util.pytorch_cos_sim(
+        question_embedding, context_embedding
+    ).item()
+
+    # Basic relevancy check.
+    question_answer_similarity = util.pytorch_cos_sim(
+        answer_embedding, question_embedding
+    ).item()
+
+    answer_expected_similarity = util.pytorch_cos_sim(
+        answer_embedding, expected_embedding
+    ).item()
+
+    return {
+        "question_context_similarity": question_similarity,
+        "answer_context_similarity": answer_similarity,
+        "question_answer_similarity": question_answer_similarity,
+        "answer_expected_similarity": answer_expected_similarity,
+    }
 
 
 if __name__ == "__main__":
@@ -98,8 +144,13 @@ if __name__ == "__main__":
                     ]
                 )
 
-                evaluation = evaluate(
-                    eval_datasets, metrics=[BleuScore(), RougeScore()]
+                # ragas
+                overall_eval = evaluate(
+                    dataset=eval_datasets, metrics=[BleuScore(), RougeScore()]
+                )
+
+                semantic_eval = evaluate_rag_with_sentence_transformers(
+                    question, local_response, retrieved_contexts, expected
                 )
 
                 time.sleep(1)  # Small delay
@@ -108,7 +159,10 @@ if __name__ == "__main__":
                 eval_res.append(
                     {
                         "question": question,
-                        "evaluation": evaluation.to_pandas().to_dict(orient="records"),
+                        "overall_eval": overall_eval.to_pandas().to_dict(
+                            orient="records"
+                        ),
+                        "semantic_eval": semantic_eval,
                     }
                 )
 
