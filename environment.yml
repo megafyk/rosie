@@ -21,11 +21,7 @@ dependencies:
   - ragas
   - sacrebleu
   - faiss-gpu
-  - asyncpg
-  - pgvector
-  - psycopg[binary,pool]
-  - psycopg2-binary
-  - sqlalchemy[asyncio]
+  - python-telegram-bot
   - pip
   - pip:
       - python-dotenv

@@ -24,7 +24,7 @@ def chatbot(state: State, llm: HuggingFacePipeline) -> State:
 
 
 def stream_graph_updates(graph, user_input: str, config):
-    for event in graph.stream({"messages": [{"role": "user", "content": user_input}]}, config, stream_mode="values"):
+    for event in graph.stream({"messages": [{"role": "user", "content": user_input}]}, config, stream_mode="updates"):
         for value in event.values():
             print(value)
 
@@ -45,7 +45,7 @@ generation_kwargs = {
     "device": "cpu",
     "temperature": 0.2,
     "return_full_text": False,
-    "max_new_tokens": 1024,
+    "max_new_tokens": 16,
 }
 
 pipeline_instance = pipeline(
@@ -82,7 +82,7 @@ if __name__ == "__main__":
             stream_graph_updates(graph, user_input, config)
         except EOFError:
             # fallback if input() is not available
-            user_input = "What do you know about LangGraph?"
+            user_input = "What do you know about me?"
             print("User: " + user_input)
             stream_graph_updates(graph, user_input, config)
             break
