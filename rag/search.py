@@ -1,35 +1,42 @@
+import pickle
+from pathlib import Path
+
+import faiss
 import numpy as np
-from config import EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, QUESTION, TEST_PART_SYSTEM
-from database import db
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from config import EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, QUESTION, TEST_PART_SYSTEM
+from generate import generate
 
-def semantic_search(query, embedding_model, k):
-    embedding = np.array(embedding_model.embed_query(query.lower().strip()))
-    query = "SELECT * FROM document ORDER BY embedding <=> %s LIMIT %s"
-    rows = db.execute_query(query, (embedding, k))
-    semantic_context = [
-        {"id": row[0], "text": row[1], "source": row[2]} for row in rows
-    ]
-    return semantic_context
+script_dir = Path(__file__).parent
+faiss_index_path = script_dir.parent / "datasets" / "faiss_index.bin"
+faiss_document_path = script_dir.parent / "datasets" / "faiss_documents.pkl"
+# Load FAISS index
+index = faiss.read_index(str(faiss_index_path))
+with open(faiss_document_path, "rb") as f:
+    documents = pickle.load(f)
 
 
-def lexical_search(index, query, chunks, k):
-    query_tokens = query.lower().split()  # preprocess query
-    scores = index.get_scores(query_tokens)  # get best matching (BM) scores
-    indices = sorted(range(len(scores)), key=lambda i: -scores[i])[
-        :k
-    ]  # sort and get top k
-    lexical_context = [
-        {
-            "id": chunks[i][0],
-            "text": chunks[i][1],
-            "source": chunks[i][2],
-            "score": scores[i],
-        }
-        for i in indices
-    ]
-    return lexical_context
+def semantic_search(query, embedding_model, k=10):
+    # Create query embedding
+    query_vector = np.array([embedding_model.embed_query(query.lower().strip())]).astype('float32')
+
+    # Search the index
+    distances, indices = index.search(query_vector, k)
+
+    # Get the corresponding documents
+    results = []
+    for i, idx in enumerate(indices[0]):
+        if len(documents) > idx >= 0:  # Check if index is valid
+            doc = documents[idx]
+            results.append({
+                "id": idx,
+                "text": doc["text"],
+                "source": doc["source"],
+                "distance": float(distances[0][i])
+            })
+
+    return results
 
 
 def search(query, **kwargs):
@@ -57,7 +64,6 @@ if __name__ == "__main__":
         {"role": "assistant", "content": context},
         {"role": "user", "content": query},
     ]
-    from generate import generate
 
     res = generate(
         f"local:{LLM_MODEL_NAME}",
@@ -70,9 +76,3 @@ if __name__ == "__main__":
         },
     )
     print(res.choices[0].message.content)
-    # print(generate(f"openai:{OPENAI_MODEL}", messages, {}))
-    # print(generate(f"deepseek:deepseek-chat", messages, {}))
-    # print(generate(f"google:gemini-2.0-flash", messages, {}))
-
-    # res = generate_openrouter(OPENROUTER_MODEL, messages, {"temperature": 0.2})
-    # print(res.choices[0].message.content)

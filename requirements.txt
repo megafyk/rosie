@@ -17,6 +17,8 @@ underthesea
 langchain
 langchain-community
 langchain-huggingface
+langsmith
+langgraph
 transformers
 sentence-transformers
 
@@ -29,7 +31,7 @@ sacrebleu
 rouge_score
 
 # Inmemory Vector DB
-faiss-cpu
+faiss-gpu
 
 # PostgreSQL Vector DB
 asyncpg

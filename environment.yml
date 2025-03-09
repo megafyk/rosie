@@ -1,0 +1,35 @@
+name: venv
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - beautifulsoup4
+  - pytorch  # Conda often uses 'pytorch' instead of 'torch'
+  - pandas
+  - docstring_parser
+  - sentencepiece
+  - langchain
+  - langchain-community
+  - langchain-huggingface
+  - langsmith
+  - langgraph
+  - transformers
+  - sentence-transformers
+  - openai
+  - aisuite
+  - ragas
+  - sacrebleu
+  - faiss-gpu
+  - asyncpg
+  - pgvector
+  - psycopg[binary,pool]
+  - psycopg2-binary
+  - sqlalchemy[asyncio]
+  - pip
+  - pip:
+      - python-dotenv
+      - atlassian-python-api
+      - ray[all]
+      - rouge_score
+      - underthesea
