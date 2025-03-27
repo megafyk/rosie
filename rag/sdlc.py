@@ -1,32 +1,67 @@
 import os
 
-from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
-
-from pydantic import BaseModel
-from langchain_community.agent_toolkits import FileManagementToolkit
-
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import StateGraph, START
-from langgraph.graph.message import add_messages
-from typing import Annotated
-from typing_extensions import TypedDict
-from langgraph.graph import END
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, SecretStr
+from typing import Annotated, Optional
+from typing_extensions import TypedDict
+from langchain_core.messages import SystemMessage
+from langchain_core.utils.utils import secret_from_env
+from langchain_openai import ChatOpenAI
+from langchain_community.agent_toolkits import FileManagementToolkit
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-
 
 load_dotenv()
 
-### Open AI key
-os.environ["OPENAI_API_KEY"] = "Your OpenAPI Key"
-model_name = "Choose the model"
+
+class ChatOpenRouter(ChatOpenAI):
+    openai_api_key: Optional[SecretStr] = Field(
+        alias="api_key",
+        default_factory=secret_from_env("OPENROUTER_API_KEY", default=None),
+    )
+
+    @property
+    def lc_secrets(self) -> dict[str, str]:
+        return {"openai_api_key": "OPENROUTER_API_KEY"}
+
+    def __init__(self, openai_api_key: Optional[str] = None, **kwargs):
+        openai_api_key = openai_api_key or os.getenv("OPENROUTER_API_KEY")
+        super().__init__(
+            base_url="https://openrouter.ai/api/v1",
+            openai_api_key=openai_api_key,
+            **kwargs,
+        )
+
+
+class Information(BaseModel):
+    """Instructions on how to prompt the LLM."""
+
+    drivers: str
+    personas: str
+    functionalities: str
+    constraints: str
+    other: str
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    srs: Annotated[list, add_messages]  # final doc
+    srs_format: Annotated[list, add_messages]
+    max_iteration: int
+    iteration: int
+
 
 file_stores = FileManagementToolkit(
     selected_tools=["read_file", "write_file", "list_directory"],  # use current folder
 ).get_tools()
 
 read_file, write_file, list_file = file_stores
+model_name = os.getenv("OPENROUTER_MODEL", "gpt-3.5-turbo")
+llm = ChatOpenRouter(model=model_name, temperature=0, max_retries=1)
+llm_with_tool = llm.bind_tools([Information])
+
 
 InfoGatherPrompt = """Your job is to apply user-centric approach and gather information \
 from the user about the --software or application-- they need to create.
@@ -54,20 +89,6 @@ then call the relevant tool."""
 
 def get_messages_info(messages):
     return [SystemMessage(content=InfoGatherPrompt)] + messages
-
-
-class Information(BaseModel):
-    """Instructions on how to prompt the LLM."""
-
-    drivers: str
-    personas: str
-    functionalities: str
-    constraints: str
-    other: str
-
-
-llm = ChatOpenAI(model=model_name, temperature=0, max_retries=1)
-llm_with_tool = llm.bind_tools([Information])
 
 
 def information_gathering(state):
@@ -225,7 +246,7 @@ Focus on critical comments, no obvious comments.
 
 --Desired Output --
 ReqReview = <Say "Satisfied" if there is no review comments, \
-            Otherwise Say "Enhance" and list of review comments. Alignment Scope: <in %> >
+Otherwise Say "Enhance" and list of review comments. Alignment Scope: <in %> >
 
 """
 
@@ -273,44 +294,62 @@ def is_reviewed(state):
         return "enhance"
 
 
-class State(TypedDict):
-    messages: Annotated[list, add_messages]
-    srs: Annotated[list, add_messages]  # final doc
-    srs_format: Annotated[list, add_messages]
-    max_iteration: int
-    iteration: int
+memory = MemorySaver()
+workflow = StateGraph(State)
 
+workflow.add_edge(START, "information_gathering")
+
+workflow.add_node("information_gathering", information_gathering)
+workflow.add_node("generate_srs", generate_srs)
+workflow.add_node("conclude_conversation", conclude_conversation)
+workflow.add_node("reviewer", reviewer)
+
+workflow.add_conditional_edges(
+    "information_gathering",
+    is_clarified,
+    {"yes": "conclude_conversation", "no": END},
+)
+
+workflow.add_conditional_edges(
+    "reviewer", is_reviewed, {"reviewed": END, "enhance": "generate_srs"}
+)
+
+workflow.add_edge("conclude_conversation", "generate_srs")
+workflow.add_edge("generate_srs", "reviewer")
+
+graph = workflow.compile(checkpointer=memory)
+
+
+def display_graph():
+    from IPython.display import Image, display
+
+    # Create output directory if it doesn't exist
+    output_dir = "data"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Generate the graph image
+    graph_image = graph.get_graph().draw_mermaid_png()
+
+    # Save the image to a file
+    output_path = os.path.join(output_dir, "workflow_graph.png")
+    with open(output_path, "wb") as f:
+        f.write(graph_image)
+
+    # Display the image (if in a notebook environment)
+    try:
+        display(Image(graph_image))
+    except:
+        pass
+
+    print(f"Graph image saved to: {output_path}")
+    return output_path
 
 
 def main():
-    memory = MemorySaver()
-    workflow = StateGraph(State)
-
-    workflow.add_edge(START, "information_gathering")
-
-    workflow.add_node("information_gathering", information_gathering)
-    workflow.add_node("generate_srs", generate_srs)
-    workflow.add_node("conclude_conversation", conclude_conversation)
-    workflow.add_node("reviewer", reviewer)
-
-    workflow.add_conditional_edges(
-        "information_gathering", is_clarified, {"yes": "conclude_conversation", "no": END}
-    )
-
-    workflow.add_conditional_edges(
-        "reviewer", is_reviewed, {"reviewed": END, "enhance": "generate_srs"}
-    )
-
-    workflow.add_edge("conclude_conversation", "generate_srs")
-    workflow.add_edge("generate_srs", "reviewer")
-
-    graph = workflow.compile(checkpointer=memory)
-    from IPython.display import Image, display
-    display(Image(graph.get_graph().draw_mermaid_png()))
-
-
     thread = {"configurable": {"thread_id": 1}}
     FORMAT = read_file.invoke({"file_path": "input/srs_format.md"})
+
     while True:
         user = input("User (q/Q to quit): ")
         if user.lower() in ["quit", "q", "Q"]:
@@ -342,6 +381,7 @@ def main():
 
         if output and "generate_usecases" in output:
             print("SRS Generated!")
-            
+
+
 if __name__ == "__main__":
-    main()
+    display_graph()
