@@ -1,12 +1,11 @@
 import os
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, SecretStr
-from typing import Annotated, Optional
+from langchain_ollama import ChatOllama
+from pydantic import BaseModel
+from typing import Annotated
 from typing_extensions import TypedDict
 from langchain_core.messages import SystemMessage
-from langchain_core.utils.utils import secret_from_env
-from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import FileManagementToolkit
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START, END
@@ -14,26 +13,6 @@ from langgraph.graph.message import add_messages
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 load_dotenv()
-
-
-class ChatOpenRouter(ChatOpenAI):
-    openai_api_key: Optional[SecretStr] = Field(
-        alias="api_key",
-        default_factory=secret_from_env("OPENROUTER_API_KEY", default=None),
-    )
-
-    @property
-    def lc_secrets(self) -> dict[str, str]:
-        return {"openai_api_key": "OPENROUTER_API_KEY"}
-
-    def __init__(self, openai_api_key: Optional[str] = None, **kwargs):
-        openai_api_key = openai_api_key or os.getenv("OPENROUTER_API_KEY")
-        super().__init__(
-            base_url="https://openrouter.ai/api/v1",
-            openai_api_key=openai_api_key,
-            **kwargs,
-        )
-
 
 class Information(BaseModel):
     """Instructions on how to prompt the LLM."""
@@ -58,8 +37,8 @@ file_stores = FileManagementToolkit(
 ).get_tools()
 
 read_file, write_file, list_file = file_stores
-model_name = os.getenv("OPENROUTER_MODEL", "gpt-3.5-turbo")
-llm = ChatOpenRouter(model=model_name, temperature=0, max_retries=1)
+model_name = os.getenv("OPENROUTER_MODEL", "gemma3")
+llm = ChatOllama(model="llama3-groq-tool-use", temperature=0, max_retries=1)
 llm_with_tool = llm.bind_tools([Information])
 
 
@@ -215,7 +194,7 @@ def generate_srs(state):
     response = llm.invoke(messages)
 
     iteration = state["iteration"]
-    file_name = "output/srs v" + str(iteration) + ".md"
+    file_name = "datasets/srs v" + str(iteration) + ".md"
 
     write_file.invoke({"file_path": file_name, "text": response.content})
 
@@ -253,9 +232,6 @@ Otherwise Say "Enhance" and list of review comments. Alignment Scope: <in %> >
 
 def get_feedback_info(srs):
     return [SystemMessage(content=critique), HumanMessage(content=srs[-1].content)]
-
-
-llm = ChatOpenAI(model=model_name, temperature=0, max_retries=1)
 
 
 def reviewer(state):
@@ -324,7 +300,7 @@ def display_graph():
     from IPython.display import Image, display
 
     # Create output directory if it doesn't exist
-    output_dir = "data"
+    output_dir = "datasets"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -348,7 +324,7 @@ def display_graph():
 
 def main():
     thread = {"configurable": {"thread_id": 1}}
-    FORMAT = read_file.invoke({"file_path": "input/srs_format.md"})
+    FORMAT = read_file.invoke({"file_path": "datasets/srs_format.md"})
 
     while True:
         user = input("User (q/Q to quit): ")
@@ -385,3 +361,4 @@ def main():
 
 if __name__ == "__main__":
     display_graph()
+    main()

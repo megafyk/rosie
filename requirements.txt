@@ -17,6 +17,7 @@ underthesea
 langchain
 langchain-community
 langchain-huggingface
+langchain-ollama
 langsmith
 langgraph
 transformers
