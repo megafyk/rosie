@@ -37,7 +37,6 @@ file_stores = FileManagementToolkit(
 ).get_tools()
 
 read_file, write_file, list_file = file_stores
-model_name = os.getenv("OPENROUTER_MODEL", "gemma3")
 llm = ChatOllama(model="llama3-groq-tool-use", temperature=0, max_retries=1)
 llm_with_tool = llm.bind_tools([Information])
 
@@ -241,7 +240,7 @@ def reviewer(state):
     max_iteration = state["max_iteration"]
     iteration = state["iteration"] + 1
 
-    file_name = "output/srs_feedback v" + str(iteration) + ".md"
+    file_name = "datasets/srs_feedback v" + str(iteration) + ".md"
 
     write_file.invoke({"file_path": file_name, "text": response.content})
 
@@ -296,7 +295,7 @@ workflow.add_edge("generate_srs", "reviewer")
 graph = workflow.compile(checkpointer=memory)
 
 
-def display_graph():
+def generate_graph():
     from IPython.display import Image, display
 
     # Create output directory if it doesn't exist
@@ -350,7 +349,6 @@ def main():
 
                     last_message.pretty_print()
                 except Exception as e:
-                    print("Error while using pretty print")
                     print(e)
                     # print("***** Result from Agent: ",value)
                     print("***** Result from  %s" % (value))
@@ -360,5 +358,5 @@ def main():
 
 
 if __name__ == "__main__":
-    display_graph()
+    generate_graph()
     main()
