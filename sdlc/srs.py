@@ -37,7 +37,7 @@ file_stores = FileManagementToolkit(
 ).get_tools()
 
 read_file, write_file, list_file = file_stores
-llm = ChatOllama(model="llama3-groq-tool-use", temperature=0, max_retries=1)
+llm = ChatOllama(model="qwen2.5", temperature=0, max_retries=1)
 llm_with_tool = llm.bind_tools([Information])
 
 

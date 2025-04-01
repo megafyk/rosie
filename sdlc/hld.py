@@ -88,7 +88,7 @@ class HighLevelDesign(BaseModel):
     others: str  # anything required to build solution architecture, be specific, no open questions
 
 
-llm = ChatOllama(model="llama3-groq-tool-use", temperature=0, max_retries=1)
+llm = ChatOllama(model="qwen2.5", temperature=0, max_retries=1)
 llm_with_tool = llm.bind_tools([HighLevelDesign])
 
 
@@ -372,8 +372,8 @@ def generate_graph():
 # print(SRS)
 def main():
     thread = {"configurable": {"thread_id": 9}}
-    SRS = read_file.invoke({"file_path": "input/srs.md"})
-    FORMAT = read_file.invoke({"file_path": "input/hld_format.md"})
+    SRS = read_file.invoke({"file_path": "datasets/srs.md"})
+    FORMAT = read_file.invoke({"file_path": "datasets/hld_format.md"})
 
     count = 1
 
