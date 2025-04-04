@@ -37,7 +37,7 @@ file_stores = FileManagementToolkit(
 ).get_tools()
 
 read_file, write_file, list_file = file_stores
-llm = ChatOllama(model="qwen2.5", temperature=0, max_retries=1)
+llm = ChatOllama(model="qwen2.5", temperature=0, max_retries=1) 
 llm_with_tool = llm.bind_tools([Information])
 
 
@@ -358,5 +358,5 @@ def main():
 
 
 if __name__ == "__main__":
-    generate_graph()
+    # generate_graph()
     main()

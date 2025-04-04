@@ -168,7 +168,7 @@ def generate_rtc(state):
 
     response = llm.invoke(messages)
     iteration = str(state["iteration"])
-    file_name = "output/rtc v0." + iteration + ".md"
+    file_name = "datasets/rtc v0." + iteration + ".md"
 
     write_file.invoke({"file_path": file_name, "text": response.content})
 
@@ -284,8 +284,8 @@ def generate_graph():
 
 def main():
     thread = {"configurable": {"thread_id": 12}}
-    SRS = read_file.invoke({"file_path": "input/srs.md"})
-    HLD = read_file.invoke({"file_path": "input/hld.md"})
+    SRS = read_file.invoke({"file_path": "datasets/srs.md"})
+    HLD = read_file.invoke({"file_path": "datasets/hld.md"})
     # print(readfile)
 
     count = 1
@@ -323,5 +323,5 @@ def main():
                     print("Error:", e)
 
 if __name__ == "__main__":
-    generate_graph()
+    # generate_graph()
     main()

@@ -376,7 +376,6 @@ def main():
     FORMAT = read_file.invoke({"file_path": "datasets/hld_format.md"})
 
     count = 1
-
     while True:
         user = input("User (q/Q to quit): ")
         if user.lower() in ["quit", "q", "Q"]:
@@ -413,6 +412,6 @@ def main():
             break
 
 
-if __name__ == "main__":
-    generate_graph()
+if __name__ == "__main__":
+    # generate_graph()
     main()
