@@ -1,3 +1,4 @@
+import os
 import pickle
 from pathlib import Path
 
@@ -5,8 +6,11 @@ import faiss
 import numpy as np
 from langchain_huggingface import HuggingFaceEmbeddings
 
-from config import EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, QUESTION, TEST_PART_SYSTEM
-from generate import generate
+from config import EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, OPENROUTER_MODEL, QUESTION, TEST_PART_SYSTEM
+from generate import generate, generate_openrouter
+from dotenv import load_dotenv
+
+load_dotenv()
 
 script_dir = Path(__file__).parent
 faiss_index_path = script_dir.parent / "datasets" / "faiss_index.bin"
@@ -64,15 +68,12 @@ if __name__ == "__main__":
         {"role": "assistant", "content": context},
         {"role": "user", "content": query},
     ]
-
-    res = generate(
-        f"local:{LLM_MODEL_NAME}",
+    print(messages)
+    res = generate_openrouter(
+        os.getenv("OPENROUTER_MODEL"),
         messages,
         {
-            "device": "cpu",
-            "temperature": 0.2,
-            "return_full_text": False,
-            "max_new_tokens": 256,
-        },
+            "temperature": 0.0,
+        }
     )
     print(res.choices[0].message.content)

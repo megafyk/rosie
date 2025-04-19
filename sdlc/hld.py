@@ -1,5 +1,5 @@
 import os
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage, ToolMessage
 
 
@@ -87,8 +87,14 @@ class HighLevelDesign(BaseModel):
     architecture_decisions: str  # seek confirmation and clarification
     others: str  # anything required to build solution architecture, be specific, no open questions
 
-
-llm = ChatOllama(model="qwen2.5", temperature=0, max_retries=1)
+llm = ChatGoogleGenerativeAI(
+    model= os.getenv("GOOGLE_MODEL"), # replace with "gemini-2.0-flash"
+    temperature=0,
+    max_tokens=None,
+    timeout=None,
+    max_retries=2,
+    google_api_key=os.getenv("GOOGLE_API_KEY"),
+)
 llm_with_tool = llm.bind_tools([HighLevelDesign])
 
 

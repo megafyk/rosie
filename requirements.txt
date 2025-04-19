@@ -2,6 +2,7 @@ python-dotenv
 
 # confluence
 atlassian-python-api
+python-telegram-bot
 
 beautifulsoup4
 ray[all]
@@ -18,6 +19,7 @@ langchain
 langchain-community
 langchain-huggingface
 langchain-ollama
+langchain-google-genai
 langsmith
 langgraph
 transformers

@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from pydantic import BaseModel
 from typing import Annotated
 from typing_extensions import TypedDict
@@ -37,14 +37,8 @@ file_stores = FileManagementToolkit(
 ).get_tools()
 
 read_file, write_file, list_file = file_stores
-llm = ChatGoogleGenerativeAI(
-    model= os.getenv("GOOGLE_MODEL"), # replace with "gemini-2.0-flash"
-    temperature=0,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
-)
+model_name = os.getenv("OPENROUTER_MODEL", "gemma3")
+llm = ChatOllama(model="llama3-groq-tool-use", temperature=0, max_retries=1)
 llm_with_tool = llm.bind_tools([Information])
 
 
@@ -247,7 +241,7 @@ def reviewer(state):
     max_iteration = state["max_iteration"]
     iteration = state["iteration"] + 1
 
-    file_name = "datasets/srs_feedback v" + str(iteration) + ".md"
+    file_name = "output/srs_feedback v" + str(iteration) + ".md"
 
     write_file.invoke({"file_path": file_name, "text": response.content})
 
@@ -302,7 +296,7 @@ workflow.add_edge("generate_srs", "reviewer")
 graph = workflow.compile(checkpointer=memory)
 
 
-def generate_graph():
+def display_graph():
     from IPython.display import Image, display
 
     # Create output directory if it doesn't exist
@@ -356,6 +350,7 @@ def main():
 
                     last_message.pretty_print()
                 except Exception as e:
+                    print("Error while using pretty print")
                     print(e)
                     # print("***** Result from Agent: ",value)
                     print("***** Result from  %s" % (value))
@@ -365,5 +360,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # generate_graph()
+    display_graph()
     main()
